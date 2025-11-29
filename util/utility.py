@@ -152,7 +152,7 @@ def split_java_by_structure(text: str) -> List[str]:
 
 # In app.py, modify the parse_and_save_springboot_code function:
 
-def parse_and_save_springboot_code(generated_files: dict) -> str:
+def parse_and_save_springboot_code(generated_files: dict, generated_test_files: dict) -> str:
     """
     Saves the dictionary of generated files to a temporary directory.
     Includes ULTRA-aggressive cleanup to remove all file tree and non-standard characters from paths.
@@ -241,6 +241,73 @@ def parse_and_save_springboot_code(generated_files: dict) -> str:
                 file_content = file_content.replace("<dep_tag>", "<dependency>")
                 file_content = file_content.replace("</dep_tag>", "</dependency>")
                 # Add any other XML tags you obfuscated
+
+            # Remove markdown block syntax
+            file_content = re.sub(r'^\s*```[a-z]*\s*\n|\s*```\s*$', '', file_content.strip(), flags=re.MULTILINE)
+
+            # Ensure the directory structure exists
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+
+            # Write the content to the file
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(file_content)
+
+        except Exception as e:
+            st.error(f"Error saving file {relative_path} (cleaned to {cleaned_path}): {e}")
+            continue
+
+    for relative_path, file_content in generated_test_files.items():
+        try:
+
+            # 1. Initial cleanup and aggressive stripping
+            cleaned_path = relative_path.strip()
+
+            # Apply regex to remove tree drawing characters at the start of the path
+            cleaned_path = TREE_CHARS_PATTERN.sub('', cleaned_path)
+
+            # Final trim to ensure no leading/trailing spaces remain
+            cleaned_path = cleaned_path.strip()
+
+            # CRITICAL CHECK: Ensure the path is still valid
+            if not cleaned_path or cleaned_path.startswith('/'):
+                st.warning(
+                    f"Skipping path '{relative_path}' after cleanup, resulting in invalid path: '{cleaned_path}'")
+                continue
+
+            # 2. Use the cleaned path for saving
+            print(cleaned_path)
+            pattern = re.compile(r'[│├└─]+\s*')
+            cleaned_path  = pattern.sub('', cleaned_path)
+            print("Cleaned path after applying pattern")
+            print(cleaned_path)
+
+            # --- FIX FOR TEST FILE TARGET DIRECTORY ---
+            # Force all test files to go to src/test/java/
+            #test_base = os.path.join(temp_dir, "src", "test", "java")
+            # Strip any accidental existing test path
+            cleaned_rel = cleaned_path.replace("src/main/java/", "src/test/java/").lstrip("/")
+
+            full_path = os.path.join(temp_dir, cleaned_rel)
+            #full_path = os.path.join(temp_dir, cleaned_path)
+
+            # --- Code De-obfuscation / Reverse Sanitization (Existing Logic) ---
+            # ... (Existing de-obfuscation logic using the cleaned_path remains here) ...
+            if cleaned_path.endswith('.java'):
+                # Revert the custom prefixes for REST annotations
+                # Example: @@RestController -> @RestController
+                file_content = file_content.replace("@@Rest", "@Rest")
+                file_content = file_content.replace("@@Request", "@Request")
+                file_content = file_content.replace("@@Autowired", "@Autowired")
+                file_content = file_content.replace("@@Service", "@Service")
+                file_content = file_content.replace("@@Repository", "@Repository")
+                file_content = file_content.replace("@@Auto", "@Auto")
+                file_content = file_content.replace("@@Arepository", "@Repository")
+                file_content = file_content.replace("@@Service", "@Service")
+                file_content = file_content.replace("@@Kervice", "@Service")
+                file_content = file_content.replace("@public", "public")
+
+
+
 
             # Remove markdown block syntax
             file_content = re.sub(r'^\s*```[a-z]*\s*\n|\s*```\s*$', '', file_content.strip(), flags=re.MULTILINE)

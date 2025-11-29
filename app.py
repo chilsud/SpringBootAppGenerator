@@ -15,7 +15,7 @@ from rag_pipeline import   setup_rag_pipeline
 
 from util.utility import parse_java_zip, parse_and_save_springboot_code, extract_file_list_from_blueprint
 from docgen.java_docgen import create_documents, generate_documentation, evaluate_documentation, refine_documentation
-from codegen.spring_boot_appgen import generate_springboot_plan, generate_springboot_code_segmented
+from codegen.spring_boot_appgen import generate_springboot_plan, generate_springboot_code_segmented, generate_springboot_junittests_segmented
 
 
 # Load environment variables from .env file (if not set in the shell)
@@ -23,7 +23,6 @@ load_dotenv()
 
 # Define the file separator used by the LLM
 FILE_SEPARATOR = "--- FILE_START:"
-
 
 # --- Streamlit UI Setup ---
 st.set_page_config(
@@ -239,7 +238,7 @@ if uploaded_file:
 
                 if st.session_state.refined_documentation is None:
                     if st.button("Refine Documentation", type="primary"):
-                        st.session_state.step = 3
+                        st.session_state.step = 4
                         with st.spinner("Refining documentation based on evaluation..."):
                             try:
                                 refined = refine_documentation(
@@ -297,30 +296,36 @@ if uploaded_file:
         if 'documentation' in st.session_state and st.session_state.refined_documentation:
             st.header("5. Code Generation: Full Spring Boot Project 🏗️")
 
+            if st.button("🚀 Generate & Save Spring Boot Code & Test cases", key="code_gen_button", type="primary"):
 
-            if st.button("🚀 Generate & Save Spring Boot Code", key="code_gen_button", type="primary"):
                 with st.spinner("Generating multi-file Spring Boot code... (pre-defined file list)"):
                     # 1. Generate the segmented code dictionary
                     # Call the new segmented function
                     generated_files_dict = generate_springboot_code_segmented(st.session_state.documentation,st.session_state.target_file_list)
+
+                    generated_testfiles_dict = generate_springboot_junittests_segmented(st.session_state.documentation,
+                                                                                        st.session_state.target_file_list)
 
                     if not generated_files_dict:
                         st.error("Code generation failed during the segmented process. See logs above.")
                         if 'temp_project_path' in st.session_state: del st.session_state.temp_project_path
                     else:
                         st.session_state.generated_files_dict = generated_files_dict
+                        st.session_state.generated_testfiles_dict = generated_testfiles_dict
 
                         # 2. Save the files to a temporary directory
-                        temp_project_path = parse_and_save_springboot_code(st.session_state.generated_files_dict)
+                        temp_project_path = parse_and_save_springboot_code(st.session_state.generated_files_dict, st.session_state.generated_testfiles_dict)
                         st.session_state.temp_project_path = temp_project_path
 
                         st.success("✅ Spring Boot Project Code Generated and Saved!")
 
-            if 'temp_project_path' in st.session_state and st.session_state.temp_project_path and st.session_state.temp_project_path != "Generation Failed.":
+            if ('temp_project_path' in st.session_state
+                    and st.session_state.temp_project_path
+                    and st.session_state.temp_project_path != "Generation Failed."):
                 project_path = st.session_state.temp_project_path
 
                 st.subheader(f"Project Location: `{project_path}`")
-                st.info("The generated files are saved temporarily. Review the structure below.")
+                st.info("The generated files are saved in temp location. Review the structure below.")
 
                 # ... (Display file structure logic remains the same) ...
                 st.markdown("### Generated Project Structure")
